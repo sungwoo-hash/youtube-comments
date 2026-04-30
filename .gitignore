@@ -1,0 +1,7 @@
+.env
+comments.db
+watch_list.txt
+collect_job.log
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -3,8 +3,10 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent / ".env")
+# 로컬 실행 시에만 .env 로드 (클라우드에서는 환경변수로 주입됨)
+if not os.getenv("DATABASE_URL"):
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent / ".env")
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -12,39 +14,40 @@ from watch_list import get_watch_list
 from database import init_db
 from collector import collect
 
-LOG_PATH = Path(__file__).parent / "collect_job.log"
-
 
 def log(msg):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{timestamp}] {msg}"
     print(line)
-    with open(LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
+    # 로컬에서만 파일 로그 저장
+    if not os.getenv("DATABASE_URL"):
+        log_path = Path(__file__).parent / "collect_job.log"
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
 
 
 def main():
     api_key = os.getenv("YOUTUBE_API_KEY", "").strip()
     if not api_key:
-        log("ERROR: YOUTUBE_API_KEY가 .env 파일에 설정되지 않았습니다.")
+        log("ERROR: YOUTUBE_API_KEY not set.")
         sys.exit(1)
 
     init_db()
     urls = get_watch_list()
 
     if not urls:
-        log("수집할 URL이 없습니다. 앱에서 URL을 등록해 주세요.")
+        log("No URLs registered. Add URLs via the app.")
         return
 
-    log(f"자동 수집 시작 — {len(urls)}개 영상")
+    log(f"Auto-collect start — {len(urls)} video(s)")
     for url in urls:
         try:
             result = collect(api_key, url)
-            log(f"[완료] {url} → 전체 {result['total']}개 (신규 {result['new']}개, 삭제 {result['deleted']}개)")
+            log(f"[done] {url} -> total {result['total']} (new {result['new']}, deleted {result['deleted']})")
         except Exception as e:
-            log(f"[오류] {url} → {e}")
+            log(f"[error] {url} -> {e}")
 
-    log("자동 수집 완료")
+    log("Auto-collect complete")
 
 
 if __name__ == "__main__":
