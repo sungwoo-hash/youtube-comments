@@ -224,9 +224,9 @@ with tab4:
     st.subheader("댓글 분석")
     st.caption("수집 내역 조회 탭에서 다운로드한 CSV 파일을 업로드하면 Gemini AI가 여론을 분석합니다.")
 
-    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not gemini_key:
-        st.error("⚠️ GEMINI_API_KEY가 설정되지 않았습니다. Render 환경변수에 추가해 주세요.")
+    groq_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not groq_key:
+        st.error("⚠️ GROQ_API_KEY가 설정되지 않았습니다. Render 환경변수에 추가해 주세요.")
         st.stop()
 
     uploaded_file = st.file_uploader("CSV 파일 업로드", type=["csv"])
@@ -250,10 +250,10 @@ with tab4:
             if st.button("🔍 분석 시작"):
                 with st.spinner("Gemini AI가 댓글을 분석하는 중입니다..."):
                     try:
-                        from google import genai as google_genai
+                        from groq import Groq
                         import json
 
-                        client = google_genai.Client(api_key=gemini_key)
+                        client = Groq(api_key=groq_key)
 
                         # 분석용 댓글 텍스트 준비 (최대 500개, 활성 댓글 우선)
                         active_mask = df_csv.get("상태", df_csv.get("status", pd.Series(["활성"] * len(df_csv)))) == "활성"
@@ -276,11 +276,11 @@ with tab4:
 
 sentiment의 숫자는 전체 합이 100이 되는 퍼센트 값으로 입력해 주세요."""
 
-                        response = client.models.generate_content(
-                            model="gemini-2.0-flash",
-                            contents=prompt
+                        response = client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=[{"role": "user", "content": prompt}]
                         )
-                        raw = response.text.strip()
+                        raw = response.choices[0].message.content.strip()
                         # 마크다운 코드블록 제거
                         if raw.startswith("```"):
                             raw = "\n".join(raw.split("\n")[1:-1])

@@ -1,6 +1,6 @@
 streamlit
 google-api-python-client
-google-genai
+groq
 python-dotenv
 psycopg2-binary
 pytest
