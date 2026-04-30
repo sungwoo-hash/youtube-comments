@@ -254,7 +254,7 @@ with tab4:
                         import json
 
                         genai.configure(api_key=gemini_key)
-                        model = genai.GenerativeModel("gemini-2.0-flash")
+                        model = genai.GenerativeModel("gemini-2.0-flash-lite")
 
                         # 분석용 댓글 텍스트 준비 (최대 500개, 활성 댓글 우선)
                         active_mask = df_csv.get("상태", df_csv.get("status", pd.Series(["활성"] * len(df_csv)))) == "활성"
