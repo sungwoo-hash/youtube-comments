@@ -11,6 +11,20 @@ from youtube_api import extract_video_id
 load_dotenv()
 init_db()
 
+
+def to_kst(utc_str):
+    if not utc_str:
+        return ""
+    try:
+        from datetime import datetime, timezone, timedelta
+        KST = timezone(timedelta(hours=9))
+        # Z 또는 +00:00 형식 모두 처리
+        utc_str = utc_str.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(utc_str)
+        return dt.astimezone(KST).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return utc_str[:16].replace("T", " ")
+
 st.set_page_config(page_title="YouTube 댓글 수집기", layout="wide")
 st.title("📋 YouTube 댓글 수집기")
 
@@ -51,10 +65,11 @@ with tab1:
 
                 df["유형"] = df["parent_id"].apply(lambda x: "  └ 답글" if x else "댓글")
                 df["상태표시"] = df.apply(
-                    lambda r: f"삭제됨 ({r['deleted_at'][:10]})" if r["status"] == "deleted" else "활성",
+                    lambda r: f"삭제됨 ({to_kst(r['deleted_at'])[:10]})" if r["status"] == "deleted" else "활성",
                     axis=1
                 )
-                display_df = df[["유형", "author", "text", "like_count", "published_at", "상태표시"]].copy()
+                df["작성일(KST)"] = df["published_at"].apply(to_kst)
+                display_df = df[["유형", "author", "text", "like_count", "작성일(KST)", "상태표시"]].copy()
                 display_df.columns = ["유형", "작성자", "댓글 내용", "좋아요", "작성일", "상태"]
 
                 def highlight_deleted(row):
@@ -170,7 +185,7 @@ with tab3:
                 total = len(df)
                 active = (df["status"] == "active").sum()
                 deleted = (df["status"] == "deleted").sum()
-                last_collected = df["first_collected_at"].max()[:16].replace("T", " ") if not df.empty else "-"
+                last_collected = to_kst(df["first_collected_at"].max()) if not df.empty else "-"
 
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("전체 댓글", f"{total}개")
@@ -186,10 +201,11 @@ with tab3:
 
                 df["유형"] = df["parent_id"].apply(lambda x: "  └ 답글" if x else "댓글")
                 df["상태표시"] = df.apply(
-                    lambda r: f"삭제됨 ({r['deleted_at'][:10]})" if r["status"] == "deleted" else "활성",
+                    lambda r: f"삭제됨 ({to_kst(r['deleted_at'])[:10]})" if r["status"] == "deleted" else "활성",
                     axis=1
                 )
-                display_df = df[["유형", "author", "text", "like_count", "published_at", "상태표시"]].copy()
+                df["작성일(KST)"] = df["published_at"].apply(to_kst)
+                display_df = df[["유형", "author", "text", "like_count", "작성일(KST)", "상태표시"]].copy()
                 display_df.columns = ["유형", "작성자", "댓글 내용", "좋아요", "작성일", "상태"]
 
                 def highlight_deleted2(row):
