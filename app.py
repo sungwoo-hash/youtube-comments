@@ -250,11 +250,10 @@ with tab4:
             if st.button("🔍 분석 시작"):
                 with st.spinner("Gemini AI가 댓글을 분석하는 중입니다..."):
                     try:
-                        import google.generativeai as genai
+                        from google import genai as google_genai
                         import json
 
-                        genai.configure(api_key=gemini_key)
-                        model = genai.GenerativeModel("gemini-2.0-flash-lite")
+                        client = google_genai.Client(api_key=gemini_key)
 
                         # 분석용 댓글 텍스트 준비 (최대 500개, 활성 댓글 우선)
                         active_mask = df_csv.get("상태", df_csv.get("status", pd.Series(["활성"] * len(df_csv)))) == "활성"
@@ -277,7 +276,10 @@ with tab4:
 
 sentiment의 숫자는 전체 합이 100이 되는 퍼센트 값으로 입력해 주세요."""
 
-                        response = model.generate_content(prompt)
+                        response = client.models.generate_content(
+                            model="gemini-2.0-flash",
+                            contents=prompt
+                        )
                         raw = response.text.strip()
                         # 마크다운 코드블록 제거
                         if raw.startswith("```"):
