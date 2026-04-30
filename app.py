@@ -39,7 +39,7 @@ if not api_key:
 
 st.success("✅ API 키 확인됨")
 
-tab1, tab2, tab3 = st.tabs(["댓글 수집", "자동 수집 관리", "수집 내역 조회"])
+tab1, tab2, tab3, tab4 = st.tabs(["댓글 수집", "자동 수집 관리", "수집 내역 조회", "댓글 분석"])
 
 # ── 탭 1: 댓글 수집 ──────────────────────────────────────────
 with tab1:
@@ -218,3 +218,109 @@ with tab3:
                     file_name=f"comments_{video_id}.csv",
                     mime="text/csv"
                 )
+
+# ── 탭 4: 댓글 분석 ──────────────────────────────────────────
+with tab4:
+    st.subheader("댓글 분석")
+    st.caption("수집 내역 조회 탭에서 다운로드한 CSV 파일을 업로드하면 Gemini AI가 여론을 분석합니다.")
+
+    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not gemini_key:
+        st.error("⚠️ GEMINI_API_KEY가 설정되지 않았습니다. Render 환경변수에 추가해 주세요.")
+        st.stop()
+
+    uploaded_file = st.file_uploader("CSV 파일 업로드", type=["csv"])
+
+    if uploaded_file:
+        df_csv = pd.read_csv(uploaded_file)
+
+        # 댓글 텍스트 컬럼 확인
+        text_col = None
+        for col in ["댓글 내용", "text"]:
+            if col in df_csv.columns:
+                text_col = col
+                break
+
+        if text_col is None:
+            st.error("올바른 형식의 CSV 파일이 아닙니다. '수집 내역 조회' 탭에서 다운로드한 파일을 사용해 주세요.")
+        else:
+            total_comments = len(df_csv)
+            st.info(f"총 **{total_comments}개** 댓글이 로드됐습니다.")
+
+            if st.button("🔍 분석 시작"):
+                with st.spinner("Gemini AI가 댓글을 분석하는 중입니다..."):
+                    try:
+                        import google.generativeai as genai
+                        import json
+
+                        genai.configure(api_key=gemini_key)
+                        model = genai.GenerativeModel("gemini-1.5-flash")
+
+                        # 분석용 댓글 텍스트 준비 (최대 500개, 활성 댓글 우선)
+                        active_mask = df_csv.get("상태", df_csv.get("status", pd.Series(["활성"] * len(df_csv)))) == "활성"
+                        df_active = df_csv[active_mask] if active_mask.any() else df_csv
+                        sample = df_active[text_col].dropna().head(500).tolist()
+                        comments_text = "\n".join([f"- {c}" for c in sample])
+
+                        prompt = f"""아래는 유튜브 영상에 달린 댓글 목록입니다. 한국어로 분석해 주세요.
+
+댓글 목록:
+{comments_text}
+
+다음 형식의 JSON으로만 응답해 주세요. JSON 외 다른 텍스트는 포함하지 마세요:
+{{
+  "summary": "전체 여론을 3~5문장으로 요약",
+  "sentiment": {{"긍정": 숫자, "부정": 숫자, "중립": 숫자}},
+  "keywords": ["키워드1", "키워드2", "키워드3", "키워드4", "키워드5", "키워드6", "키워드7", "키워드8", "키워드9", "키워드10"],
+  "notable_comments": ["주목할 댓글1", "주목할 댓글2", "주목할 댓글3", "주목할 댓글4", "주목할 댓글5"]
+}}
+
+sentiment의 숫자는 전체 합이 100이 되는 퍼센트 값으로 입력해 주세요."""
+
+                        response = model.generate_content(prompt)
+                        raw = response.text.strip()
+                        # 마크다운 코드블록 제거
+                        if raw.startswith("```"):
+                            raw = "\n".join(raw.split("\n")[1:-1])
+
+                        result = json.loads(raw)
+
+                        # 여론 요약
+                        st.subheader("📝 전체 여론 요약")
+                        st.write(result["summary"])
+
+                        st.divider()
+
+                        # 감성 분포
+                        st.subheader("📊 감성 분포")
+                        sentiment_df = pd.DataFrame({
+                            "감성": list(result["sentiment"].keys()),
+                            "비율(%)": list(result["sentiment"].values())
+                        })
+                        col1, col2 = st.columns([1, 1])
+                        with col1:
+                            st.bar_chart(sentiment_df.set_index("감성"))
+                        with col2:
+                            for k, v in result["sentiment"].items():
+                                st.metric(k, f"{v}%")
+
+                        st.divider()
+
+                        # 주요 키워드
+                        st.subheader("🔑 주요 키워드")
+                        keywords = result["keywords"]
+                        cols = st.columns(5)
+                        for i, kw in enumerate(keywords):
+                            cols[i % 5].markdown(f"**#{kw}**")
+
+                        st.divider()
+
+                        # 주목할 댓글
+                        st.subheader("💬 주목할 댓글")
+                        for i, comment in enumerate(result["notable_comments"], 1):
+                            st.markdown(f"**{i}.** {comment}")
+
+                    except json.JSONDecodeError:
+                        st.error("분석 결과를 파싱하는 데 실패했습니다. 다시 시도해 주세요.")
+                    except Exception as e:
+                        st.error(f"분석 중 오류가 발생했습니다: {e}")
