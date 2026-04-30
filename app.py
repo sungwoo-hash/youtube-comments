@@ -152,11 +152,6 @@ with tab2:
                     remove_url(u)
                     st.rerun()
 
-    st.divider()
-    st.subheader("작업 스케줄러 설정")
-    st.caption("아직 작업 스케줄러를 등록하지 않았다면 아래 파일을 실행하세요.")
-    st.code("C:\\Users\\user\\youtube-comments\\setup_scheduler.bat", language="text")
-    st.markdown("**실행 방법:** 파일 탐색기에서 `setup_scheduler.bat`을 **우클릭 → 관리자 권한으로 실행**")
 
 # ── 탭 3: 수집 내역 조회 ─────────────────────────────────────
 with tab3:
