@@ -1,6 +1,7 @@
 streamlit
 google-api-python-client
 groq
+plotly
 python-dotenv
 psycopg2-binary
 pytest

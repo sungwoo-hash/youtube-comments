@@ -284,7 +284,8 @@ with tab4:
 sentiment의 숫자는 전체 합이 100이 되는 퍼센트 값으로 입력해 주세요."""
                             response = client.chat.completions.create(
                                 model="llama-3.3-70b-versatile",
-                                messages=[{"role": "user", "content": prompt}]
+                                messages=[{"role": "user", "content": prompt}],
+                                temperature=0
                             )
                             raw = response.choices[0].message.content.strip()
                             if raw.startswith("```"):
@@ -322,7 +323,8 @@ sentiment의 숫자는 전체 합이 100이 되는 퍼센트 값으로 입력해
 {summaries}"""
                             final_response = client.chat.completions.create(
                                 model="llama-3.3-70b-versatile",
-                                messages=[{"role": "user", "content": final_prompt}]
+                                messages=[{"role": "user", "content": final_prompt}],
+                                temperature=0
                             )
                             final_raw = final_response.choices[0].message.content.strip()
                             if final_raw.startswith("```"):
@@ -344,14 +346,29 @@ sentiment의 숫자는 전체 합이 100이 되는 퍼센트 값으로 입력해
 
                         # 감성 분포
                         st.subheader("📊 감성 분포")
-                        sentiment_df = pd.DataFrame({
-                            "감성": list(result["sentiment"].keys()),
-                            "비율(%)": list(result["sentiment"].values())
-                        })
-                        col1, col2 = st.columns([1, 1])
+                        import plotly.graph_objects as go
+                        sentiment_labels = list(result["sentiment"].keys())
+                        sentiment_values = list(result["sentiment"].values())
+                        colors = {"긍정": "#4CAF50", "부정": "#F44336", "중립": "#9E9E9E"}
+                        fig = go.Figure(go.Bar(
+                            x=sentiment_labels,
+                            y=sentiment_values,
+                            text=[f"{v}%" for v in sentiment_values],
+                            textposition="auto",
+                            marker_color=[colors.get(k, "#2196F3") for k in sentiment_labels]
+                        ))
+                        fig.update_layout(
+                            yaxis_title="비율(%)",
+                            yaxis_range=[0, 100],
+                            showlegend=False,
+                            height=300,
+                            margin=dict(t=20, b=20)
+                        )
+                        col1, col2 = st.columns([2, 1])
                         with col1:
-                            st.bar_chart(sentiment_df.set_index("감성"))
+                            st.plotly_chart(fig, use_container_width=True)
                         with col2:
+                            st.write("")
                             for k, v in result["sentiment"].items():
                                 st.metric(k, f"{v}%")
 
