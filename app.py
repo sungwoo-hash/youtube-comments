@@ -222,7 +222,7 @@ with tab3:
 # ── 탭 4: 댓글 분석 ──────────────────────────────────────────
 with tab4:
     st.subheader("댓글 분석")
-    st.caption("수집 내역 조회 탭에서 다운로드한 CSV 파일을 업로드하면 Gemini AI가 여론을 분석합니다.")
+    st.caption("수집 내역 조회 탭에서 다운로드한 CSV 파일을 업로드하면 Groq AI가 여론을 분석합니다.")
 
     groq_key = os.getenv("GROQ_API_KEY", "").strip()
     if not groq_key:
@@ -270,6 +270,8 @@ with tab4:
 
 댓글 목록:
 {comments_text}
+
+반드시 한국어로만 작성하세요. 다른 언어는 절대 사용하지 마세요.
 
 다음 형식의 JSON으로만 응답해 주세요. JSON 외 다른 텍스트는 포함하지 마세요:
 {{
