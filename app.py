@@ -248,44 +248,91 @@ with tab4:
             st.info(f"총 **{total_comments}개** 댓글이 로드됐습니다.")
 
             if st.button("🔍 분석 시작"):
-                with st.spinner("Gemini AI가 댓글을 분석하는 중입니다..."):
+                with st.spinner("AI가 댓글을 분석하는 중입니다..."):
                     try:
                         from groq import Groq
                         import json
+                        import math
 
                         client = Groq(api_key=groq_key)
 
-                        # 분석용 댓글 텍스트 준비 (최대 500개, 활성 댓글 우선)
+                        # 활성 댓글 전체 사용
                         active_mask = df_csv.get("상태", df_csv.get("status", pd.Series(["활성"] * len(df_csv)))) == "활성"
                         df_active = df_csv[active_mask] if active_mask.any() else df_csv
-                        sample = df_active[text_col].dropna().head(100).tolist()
-                        comments_text = "\n".join([f"- {c}" for c in sample])
+                        all_comments = df_active[text_col].dropna().tolist()
 
-                        prompt = f"""아래는 유튜브 영상에 달린 댓글 목록입니다. 한국어로 분석해 주세요.
+                        CHUNK_SIZE = 80
+                        chunks = [all_comments[i:i+CHUNK_SIZE] for i in range(0, len(all_comments), CHUNK_SIZE)]
+
+                        def analyze_chunk(comments):
+                            comments_text = "\n".join([f"- {c}" for c in comments])
+                            prompt = f"""아래는 유튜브 영상에 달린 댓글 목록입니다. 한국어로 분석해 주세요.
 
 댓글 목록:
 {comments_text}
 
 다음 형식의 JSON으로만 응답해 주세요. JSON 외 다른 텍스트는 포함하지 마세요:
 {{
-  "summary": "전체 여론을 3~5문장으로 요약",
+  "summary": "이 댓글들의 여론을 2~3문장으로 요약",
   "sentiment": {{"긍정": 숫자, "부정": 숫자, "중립": 숫자}},
-  "keywords": ["키워드1", "키워드2", "키워드3", "키워드4", "키워드5", "키워드6", "키워드7", "키워드8", "키워드9", "키워드10"],
-  "notable_comments": ["주목할 댓글1", "주목할 댓글2", "주목할 댓글3", "주목할 댓글4", "주목할 댓글5"]
+  "keywords": ["키워드1", "키워드2", "키워드3", "키워드4", "키워드5"],
+  "notable_comments": ["주목할 댓글1", "주목할 댓글2", "주목할 댓글3"]
 }}
 
 sentiment의 숫자는 전체 합이 100이 되는 퍼센트 값으로 입력해 주세요."""
+                            response = client.chat.completions.create(
+                                model="llama-3.3-70b-versatile",
+                                messages=[{"role": "user", "content": prompt}]
+                            )
+                            raw = response.choices[0].message.content.strip()
+                            if raw.startswith("```"):
+                                raw = "\n".join(raw.split("\n")[1:-1])
+                            return json.loads(raw)
 
-                        response = client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
-                            messages=[{"role": "user", "content": prompt}]
-                        )
-                        raw = response.choices[0].message.content.strip()
-                        # 마크다운 코드블록 제거
-                        if raw.startswith("```"):
-                            raw = "\n".join(raw.split("\n")[1:-1])
+                        # 청크별 분석
+                        chunk_results = []
+                        progress = st.progress(0, text="분석 중...")
+                        for i, chunk in enumerate(chunks):
+                            chunk_results.append(analyze_chunk(chunk))
+                            progress.progress((i + 1) / len(chunks), text=f"분석 중... ({i+1}/{len(chunks)})")
+                        progress.empty()
 
-                        result = json.loads(raw)
+                        # 청크가 1개면 바로 사용, 여러 개면 최종 통합 분석
+                        if len(chunk_results) == 1:
+                            result = chunk_results[0]
+                        else:
+                            summaries = "\n".join([f"- {r['summary']}" for r in chunk_results])
+                            all_keywords = [kw for r in chunk_results for kw in r["keywords"]]
+                            all_notable = [c for r in chunk_results for c in r["notable_comments"]]
+
+                            # 감성 평균
+                            avg_sentiment = {
+                                "긍정": round(sum(r["sentiment"]["긍정"] for r in chunk_results) / len(chunk_results)),
+                                "부정": round(sum(r["sentiment"]["부정"] for r in chunk_results) / len(chunk_results)),
+                                "중립": round(sum(r["sentiment"]["중립"] for r in chunk_results) / len(chunk_results)),
+                            }
+
+                            # 최종 요약 생성
+                            final_prompt = f"""아래는 유튜브 영상 댓글을 여러 구간으로 나눠 분석한 요약들입니다. 이를 종합해서 전체 여론을 한국어로 3~5문장으로 요약해 주세요. JSON 외 다른 텍스트 없이 아래 형식으로만 응답해 주세요:
+{{"final_summary": "전체 여론 요약"}}
+
+구간별 요약:
+{summaries}"""
+                            final_response = client.chat.completions.create(
+                                model="llama-3.3-70b-versatile",
+                                messages=[{"role": "user", "content": final_prompt}]
+                            )
+                            final_raw = final_response.choices[0].message.content.strip()
+                            if final_raw.startswith("```"):
+                                final_raw = "\n".join(final_raw.split("\n")[1:-1])
+                            final_json = json.loads(final_raw)
+
+                            result = {
+                                "summary": final_json["final_summary"],
+                                "sentiment": avg_sentiment,
+                                "keywords": list(dict.fromkeys(all_keywords))[:10],
+                                "notable_comments": all_notable[:5]
+                            }
 
                         # 여론 요약
                         st.subheader("📝 전체 여론 요약")
