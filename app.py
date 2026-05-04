@@ -258,7 +258,7 @@ with tab4:
                         # 분석용 댓글 텍스트 준비 (최대 500개, 활성 댓글 우선)
                         active_mask = df_csv.get("상태", df_csv.get("status", pd.Series(["활성"] * len(df_csv)))) == "활성"
                         df_active = df_csv[active_mask] if active_mask.any() else df_csv
-                        sample = df_active[text_col].dropna().head(500).tolist()
+                        sample = df_active[text_col].dropna().head(100).tolist()
                         comments_text = "\n".join([f"- {c}" for c in sample])
 
                         prompt = f"""아래는 유튜브 영상에 달린 댓글 목록입니다. 한국어로 분석해 주세요.
